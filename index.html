@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ome-Chat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "react": "https://esm.sh/react@18.2.0",
+                "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+                "lucide-react": "https://esm.sh/lucide-react@0.263.1"
+            }
+        }
+    </script>
+    <style>
+        /* Custom scrollbar to match the original design */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-950 text-slate-100">
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useRef } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import {
+            Send,
+            LogOut,
+            User,
+            Terminal,
+            Wifi,
+            Cpu,
+            MessageSquare,
+            Zap,
+            Code2
+        } from 'lucide-react';
+
+        // --- FIREBASE CONFIGURATION ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import {
+            getAuth,
+            signInAnonymously,
+            onAuthStateChanged,
+            signInWithCustomToken
+        } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import {
+            getFirestore,
+            collection,
+            addDoc,
+            onSnapshot,
+            serverTimestamp
+        } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBz2MQ-pi3-SKlY7QABY7woXG6JWXu-CK8",
+            authDomain: "ome-chat-f2e7b.firebaseapp.com",
+            projectId: "ome-chat-f2e7b",
+            storageBucket: "ome-chat-f2e7b.firebasestorage.app",
+            messagingSenderId: "591352425114",
+            appId: "1:591352425114:web:816da128ae0d777a818d23"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = firebaseConfig.projectId;
+        const __initial_auth_token = undefined;
+
+        // --- MAIN APP COMPONENT ---
+        function App() {
+            const [user, setUser] = useState(null);
+            const [authLoading, setAuthLoading] = useState(true);
+
+            useEffect(() => {
+                const initAuth = async () => {
+                    try {
+                        // Simulate network delay
+                        await new Promise(resolve => setTimeout(resolve, 800));
+
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (error) {
+                        console.error("Auth Error:", error);
+                    }
+                };
+                initAuth();
+
+                const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+                    setUser(currentUser);
+                    setAuthLoading(false);
+                });
+                return () => unsubscribe();
+            }, []);
+
+            if (authLoading) {
+                return (
+                    <div className="flex h-screen w-full items-center justify-center bg-slate-950 text-emerald-500 font-mono">
+                        <div className="flex flex-col items-center gap-4">
+                            <Terminal className="h-12 w-12 animate-pulse" />
+                            <p className="text-xl">INITIALIZING UPLINK...</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="flex h-screen w-full bg-slate-950 font-sans text-slate-100 selection:bg-emerald-500/30">
+                    {!user ? <LoginScreen /> : <ChatRoom user={user} />}
+                </div>
+            );
+        }
+
+        // --- LOGIN SCREEN ---
+        function LoginScreen() {
+            return (
+                <div className="flex h-full w-full flex-col items-center justify-center gap-8 p-4 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black">
+                    <div className="relative">
+                        <div className="absolute -inset-1 rounded-full bg-emerald-500 opacity-20 blur-xl animate-pulse"></div>
+                        <div className="relative flex h-24 w-24 items-center justify-center rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl">
+                            <Cpu className="h-12 w-12 text-emerald-500" />
+                        </div>
+                    </div>
+
+                    <div className="text-center space-y-2">
+                        <h1 className="text-4xl font-bold tracking-tight text-white">
+                            ANTIGRAVITY <span className="text-emerald-500">CHAT</span>
+                        </h1>
+                        <p className="text-slate-400 max-w-md mx-auto">
+                            Secure, real-time communication channel.
+                            Establishing neural handshake...
+                        </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-sm text-slate-500">
+                        <Wifi className="h-4 w-4 animate-pulse" />
+                        <span>Connected to Firebase Node: {appId.substring(0, 8)}</span>
+                    </div>
+                </div>
+            );
+        }
+
+        // --- CHAT ROOM COMPONENT ---
+        function ChatRoom({ user }) {
+            const [messages, setMessages] = useState([]);
+            const [newMessage, setNewMessage] = useState('');
+            const [loadingMessages, setLoadingMessages] = useState(true);
+            const dummySpace = useRef();
+
+            // Use a fixed collection path
+            const messagesRef = collection(db, 'artifacts', appId, 'public', 'data', 'global_chat');
+
+            useEffect(() => {
+                const unsubscribe = onSnapshot(messagesRef, (snapshot) => {
+                    const fetchedMessages = snapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+
+                    fetchedMessages.sort((a, b) => {
+                        const timeA = a.createdAt?.seconds || 0;
+                        const timeB = b.createdAt?.seconds || 0;
+                        return timeA - timeB;
+                    });
+
+                    setMessages(fetchedMessages);
+                    setLoadingMessages(false);
+
+                    setTimeout(() => {
+                        dummySpace.current?.scrollIntoView({ behavior: 'smooth' });
+                    }, 100);
+                }, (error) => {
+                    console.error("Firestore Read Error:", error);
+                    setLoadingMessages(false);
+                });
+
+                return () => unsubscribe();
+            }, []);
+
+            const handleSendMessage = async (e) => {
+                e.preventDefault();
+                if (!newMessage.trim()) return;
+
+                try {
+                    await addDoc(messagesRef, {
+                        text: newMessage,
+                        createdAt: serverTimestamp(),
+                        uid: user.uid,
+                        displayName: user.displayName || `User ${user.uid.slice(0, 4)}`,
+                        photoURL: user.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.uid}`
+                    });
+                    setNewMessage('');
+                    dummySpace.current?.scrollIntoView({ behavior: 'smooth' });
+                } catch (error) {
+                    console.error("Error writing to Firestore:", error);
+                }
+            };
+
+            return (
+                <div className="flex w-full h-full overflow-hidden">
+                    {/* Sidebar (Desktop) */}
+                    <aside className="hidden md:flex w-64 flex-col border-r border-slate-800 bg-slate-900/50">
+                        <div className="p-4 border-b border-slate-800 flex items-center gap-2 text-emerald-400 font-bold">
+                            <Terminal className="h-5 w-5" />
+                            <span>NET_LOBBY</span>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Active Channels</div>
+                            <button className="flex w-full items-center gap-3 rounded-lg bg-emerald-500/10 px-3 py-2 text-sm text-emerald-400 border border-emerald-500/20">
+                                <MessageSquare className="h-4 w-4" />
+                                <span>#general</span>
+                            </button>
+                            <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-400 hover:bg-slate-800 transition-colors">
+                                <Code2 className="h-4 w-4" />
+                                <span>#development</span>
+                            </button>
+                            <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-400 hover:bg-slate-800 transition-colors">
+                                <Zap className="h-4 w-4" />
+                                <span>#random</span>
+                            </button>
+                        </div>
+
+                        <div className="p-4 border-t border-slate-800 bg-slate-900">
+                            <div className="flex items-center gap-3">
+                                <div className="h-8 w-8 rounded bg-emerald-900 flex items-center justify-center text-emerald-200 text-xs font-bold">
+                                    ID
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-slate-200 truncate">User {user.uid.slice(0, 5)}</p>
+                                    <p className="text-xs text-emerald-500">Online</p>
+                                </div>
+                            </div>
+                        </div>
+                    </aside>
+
+                    {/* Main Chat Area */}
+                    <main className="flex-1 flex flex-col bg-slate-950 relative">
+                        {/* Mobile Header */}
+                        <header className="md:hidden flex items-center justify-between p-4 border-b border-slate-800 bg-slate-900/80 backdrop-blur">
+                            <span className="font-bold text-emerald-400 flex items-center gap-2">
+                                <Terminal className="h-5 w-5" /> #general
+                            </span>
+                            <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                        </header>
+
+                        {/* Messages List */}
+                        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
+                            {loadingMessages && (
+                                <div className="flex items-center justify-center h-full text-slate-500 animate-pulse">
+                                    Decrypting stream...
+                                </div>
+                            )}
+
+                            {!loadingMessages && messages.length === 0 && (
+                                <div className="flex flex-col items-center justify-center h-full text-slate-600 gap-2">
+                                    <MessageSquare className="h-12 w-12 opacity-20" />
+                                    <p>Channel is quiet. Start the transmission.</p>
+                                </div>
+                            )}
+
+                            {messages.map((msg) => {
+                                const isMe = msg.uid === user.uid;
+                                return (
+                                    <div
+                                        key={msg.id}
+                                        className={`flex gap-4 ${isMe ? 'flex-row-reverse' : 'flex-row'} group animate-in fade-in slide-in-from-bottom-2 duration-300`}
+                                    >
+                                        {/* Avatar */}
+                                        <div className={`h-8 w-8 rounded-none border ${isMe ? 'border-emerald-500/50 bg-emerald-900/20' : 'border-slate-700 bg-slate-800'} flex items-center justify-center shrink-0`}>
+                                            <User className={`h-4 w-4 ${isMe ? 'text-emerald-500' : 'text-slate-400'}`} />
+                                        </div>
+
+                                        {/* Message Content */}
+                                        <div className={`flex flex-col max-w-[80%] md:max-w-[60%] ${isMe ? 'items-end' : 'items-start'}`}>
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className={`text-xs font-bold ${isMe ? 'text-emerald-400' : 'text-slate-300'}`}>
+                                                    {isMe ? 'YOU' : `USER_${msg.uid.slice(0, 4)}`}
+                                                </span>
+                                                <span className="text-[10px] text-slate-600 font-mono">
+                                                    {msg.createdAt?.seconds
+                                                        ? new Date(msg.createdAt.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                                                        : 'SYNCING...'}
+                                                </span>
+                                            </div>
+
+                                            <div
+                                                className={`relative px-4 py-2 text-sm md:text-base leading-relaxed break-words rounded-sm
+                            ${isMe
+                                                        ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-100'
+                                                        : 'bg-slate-900 border border-slate-800 text-slate-300'}
+                            `}
+                                            >
+                                                {/* Decorative corner markers */}
+                                                <div className={`absolute top-0 w-1 h-1 ${isMe ? 'bg-emerald-500 right-0' : 'bg-slate-600 left-0'}`}></div>
+                                                <div className={`absolute bottom-0 w-1 h-1 ${isMe ? 'bg-emerald-500 right-0' : 'bg-slate-600 left-0'}`}></div>
+
+                                                {msg.text}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            <div ref={dummySpace} />
+                        </div>
+
+                        {/* Input Area */}
+                        <div className="p-4 bg-slate-900/50 border-t border-slate-800">
+                            <form onSubmit={handleSendMessage} className="max-w-4xl mx-auto relative flex items-center gap-2">
+                                <div className="flex-1 relative group">
+                                    <div className="absolute inset-0 bg-emerald-500/20 blur-md rounded-lg opacity-0 group-focus-within:opacity-100 transition-opacity"></div>
+                                    <input
+                                        type="text"
+                                        value={newMessage}
+                                        onChange={(e) => setNewMessage(e.target.value)}
+                                        placeholder="Enter command or message..."
+                                        className="relative w-full bg-slate-950 border border-slate-700 text-slate-200 placeholder:text-slate-600 rounded-lg px-4 py-3 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all font-mono"
+                                    />
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    disabled={!newMessage.trim()}
+                                    className="h-12 w-12 flex items-center justify-center rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 hover:shadow-[0_0_15px_rgba(16,185,129,0.4)] disabled:opacity-50 disabled:hover:shadow-none transition-all duration-200"
+                                >
+                                    <Send className="h-5 w-5" />
+                                </button>
+                            </form>
+                            <div className="text-center mt-2">
+                                <span className="text-[10px] text-slate-600 uppercase tracking-widest">End-to-End Encryption [OFF] • System Stable</span>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        }
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+
+</html>
