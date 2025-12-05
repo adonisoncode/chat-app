@@ -20,44 +20,6 @@ The UI is designed with a "Developer First" dark mode, featuring a responsive la
 
 🔄 Smart Auto-Scroll: Chat window automatically snaps to the latest message when received.
 
-🛠️ Tech Stack
-
-Component
-
-Technology
-
-Description
-
-Frontend
-
-React.js
-
-Component-based UI architecture
-
-Styling
-
-Tailwind CSS
-
-Utility-first CSS framework for rapid UI design
-
-Backend
-
-Firebase Firestore
-
-NoSQL Cloud Database for real-time data storage
-
-Auth
-
-Firebase Auth
-
-Secure anonymous user session management
-
-Icons
-
-Lucide React
-
-Lightweight, clean SVG icons
-
 🚀 How to Run Locally
 
 Follow these steps to get the project running on your machine.
@@ -72,7 +34,7 @@ Installation
 
 Clone the repo
 
-git clone [https://github.com/your-username/ome-chat.git](https://github.com/your-username/ome-chat.git)
+git clone [https://github.com/adonisoncode/ome-chat.git]
 cd ome-chat
 
 
@@ -147,12 +109,10 @@ Open a Pull Request
 
 👤 Author
 
-$$Your Name$$
+$$Maulik Sharma$$
 
-GitHub: @yourusername
+GitHub: @adonisoncode
 
-LinkedIn: Your Profile
+LinkedIn: www.linkedin.com/in/maulik-sharma-02a22b21a
 
-Made for CSE Minor Project 
-
-$$Year$$
+Made for CSE Minor Project
