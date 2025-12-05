@@ -68,7 +68,12 @@
             collection,
             addDoc,
             onSnapshot,
-            serverTimestamp
+            serverTimestamp,
+            query,
+            where,
+            getDocs,
+            writeBatch,
+            Timestamp
         } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -171,6 +176,35 @@
 
             // Use a fixed collection path
             const messagesRef = collection(db, 'artifacts', appId, 'public', 'data', 'global_chat');
+
+            // --- AUTO CLEANUP LOGIC (1 HOUR) ---
+            useEffect(() => {
+                const cleanupOldMessages = async () => {
+                    try {
+                        // 1 Hour ago
+                        const cutoff = new Date(Date.now() - 1 * 60 * 60 * 1000);
+                        const cutoffTimestamp = Timestamp.fromDate(cutoff);
+
+                        const q = query(messagesRef, where("createdAt", "<", cutoffTimestamp));
+                        const snapshot = await getDocs(q);
+
+                        if (!snapshot.empty) {
+                            console.log(`Found ${snapshot.size} expired messages. Cleaning up...`);
+                            const batch = writeBatch(db);
+                            snapshot.docs.forEach(doc => {
+                                batch.delete(doc.ref);
+                            });
+                            await batch.commit();
+                            console.log("Cleanup complete.");
+                        }
+                    } catch (error) {
+                        console.error("Cleanup Error:", error);
+                    }
+                };
+
+                // Run cleanup on mount
+                cleanupOldMessages();
+            }, []);
 
             useEffect(() => {
                 const unsubscribe = onSnapshot(messagesRef, (snapshot) => {
